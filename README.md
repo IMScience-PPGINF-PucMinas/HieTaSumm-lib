@@ -5,7 +5,7 @@ HieTaSumm serves as a versatile toolkit for video summarization or video skimmin
 
 ## Getting started
 
-###Pre-build binaries
+### Pre-build binaries
 The Python package can be installed with Pypi:
 
 pip install HieTaSumm
