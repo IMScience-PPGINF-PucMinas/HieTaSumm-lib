@@ -1,4 +1,4 @@
-# hierarchical approach for video summarization
+# HieTaSumm: Hierarchical Time-aware Summarization Library for Video Processing
 
 HieTaSumm — Hierarchical Time-aware Summarizer is a Python library for generating dynamic video summaries focusing on hierarchical graphs that are capable of processing multiple frames. The main features presented by HieTaSumm are the representation of videos in graphs that consider the importance and coherence of time to form clusters that represent keyframes or keyshots. By using hierarchical methods, the generated clusters guarantee that the cuts did not produce new locations and generate homogeneous regions. HieTaSumm's main target audience is students and professionals who want an accessible library to quickly experiment with, researchers developing new methods for processing videos.
 HieTaSumm serves as a versatile toolkit for video summarization or video skimming, finding applications across diverse fields such as machine learning, data science, pattern analysis, and computer vision. Its generic nature makes it adaptable to a wide range of scenarios within these domains.
