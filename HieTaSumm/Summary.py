@@ -10,7 +10,7 @@ import networkx as nx
 import cv2 as cv
 
 class Summary:
-  def __init__(self, dataset_frames, video, rate, time, hierarchy, selected_model, is_binary, percent, alpha, keyshot, keyframe):
+  def __init__(self, dataset_frames, video, rate, time, hierarchy, selected_model, is_binary, percent, alpha, gen_summary_method):
     self.delta_t = rate * time
     self.video_file = "{}/{}/".format(dataset_frames, video)
     self.video = video
@@ -24,17 +24,13 @@ class Summary:
 
     # creating path for files
     self.input_graph_file = Files('{}graph.txt'.format(self.video_file))
-    if keyshot: 
-      self.input_keyshot = Files('{}keyshot_{}_{}.txt'.format(self.video_file, self.percent, self.alpha))
-      self.input_keyshot_path = '{}keyshot_{}_{}/'.format(self.video_file, self.percent, self.alpha)
     self.input_mst = '{}mst_{}_{}.txt'.format(self.video_file, self.percent, self.alpha)
     self.input_higra = Files('{}higra_{}_{}.txt'.format(self.video_file, self.percent, self.alpha))
     self.cut_graph_file = Files('{}cut_graph_{}_{}.txt'.format(self.video_file, self.percent, self.alpha))
     self.frames_path = "{}frames/".format(self.video_file)
     self.output_skim = '{}skim_{}_{}'.format(self.video_file, self.percent, self.alpha)
-    if keyframe:
-      self.input_keyframe_path = '{}keyframe_{}_{}/'.format(self.video_file, self.percent, self.alpha)
-      self.input_keyframe = Files('{}keyframe_{}_{}.txt'.format(self.video_file, self.percent, self.alpha))
+    self.summ_path = '{}{}/'.format(self.video_file, gen_summary_method['method'])
+    self.summ_input = Files('{}{}.txt'.format(self.video_file, gen_summary_method['method']))
 
     cut_number = self.bestCutNumber()
 
@@ -49,20 +45,27 @@ class Summary:
 
     if(not os.path.exists(self.input_higra.file)):
 
-      self.len_shot = round((len(os.listdir(self.frames_path))) * (self.percent/100)) - 1
-      self.cut_number = int(self.bestCutNumber() * alpha)
-      if(self.cut_number <= 2):
-          self.cut_number = 3
+      if gen_summary_method['method'] == 'n_fixed_keyframes':
+        chosen = gen_summary_method['n_keyframes']
+        self.cut_number = chosen - 1
+      elif gen_summary_method['method'] in ['group_central_frames', 'percent_spaced']:
+        self.len_shot = round((len(os.listdir(self.frames_path))) * (self.percent/100)) - 1
+        self.cut_number = int(self.bestCutNumber() * alpha)
+        if(self.cut_number <= 2):
+            self.cut_number = 3
 
       #tree = gen_mst(input_graph_file, input_mst) # generate the minimum spanning tree
       tree = self.input_graph_file.read_graph_file(Files(), cut_graph = False, cut_number = 0) # read the graph file
       leaflist = self.graph.compute_hierarchy(tree, self.input_higra) # Create the hierarchy based on the minimum spanning tree and return the leaves of the new hierarchy
       cuted_graph = self.graph.cut_graph(self.input_higra, self.cut_graph_file, cutNumber = cut_number) # Create a new graph based on the hierarchy and the level cut
       #plotGraph(cuted_graph, True)
-      if keyframe:
-        self.selectKeyFrame(cuted_graph, leaflist) # With the cuted graph, create a keyframe to represent each component or segment of video
-      if keyshot:
-        self.selectKeyShot(cuted_graph, leaflist)
+      if gen_summary_method['method'] == 'sequential_keyframe':
+        self.sequential_keyframe(gen_summary_method['n_keyframes'])
+      if gen_summary_method['method'] in ('n_fixed_keyframes', 'percent_spaced'):
+        self.get_n_frames(cuted_graph, leaflist)
+      if gen_summary_method['method'] == 'group_central_frames':
+        self.group_central_frames(cuted_graph, leaflist)
+
       if(not os.path.exists(self.output_skim)):
         os.mkdir(self.output_skim)
       self.generate_video()
@@ -104,8 +107,16 @@ class Summary:
       if similarity < 20:
           similarity = 20
       return similarity
+  
+  def sequential_keyframe(self, n):
+      for i in range(1, n+1):
+        kf = str(i).zfill(6)
+        if not os.path.isdir(self.summ_path):
+          os.mkdir(self.summ_path)
+        os.system('cp {}frames/{}.jpg {}{}.jpg'.format(self.video_file, kf, self.summ_path, kf))
+        self.summ_input.save_graph_data(kf, '  ', '.jpg')
 
-  def selectKeyFrame(self, graph, leaflist):
+  def get_n_frames(self, graph, leaflist):
     S = [graph.subgraph(c).copy() for c in nx.connected_components(graph)]
     #KF_list = []
     for c in range(len(S)):
@@ -118,12 +129,12 @@ class Summary:
       if not (cn == 0):
         kf = str(comp_leaf_list[cn]).zfill(6)
 
-        if not os.path.isdir(self.input_keyframe_path):
-          os.mkdir(self.input_keyframe_path)
-        os.system('cp {}frames/{}.jpg {}{}.jpg'.format(self.video_file, kf, self.input_keyframe_path, kf))
-        self.input_keyframe.save_graph_data(kf, '  ', '.jpg')
+        if not os.path.isdir(self.summ_path):
+          os.mkdir(self.summ_path)
+        os.system('cp {}frames/{}.jpg {}{}.jpg'.format(self.video_file, kf, self.summ_path, kf))
+        self.summ_input.save_graph_data(kf, '  ', '.jpg')
 
-  def selectKeyShot(self, graph, leaflist):
+  def group_central_frames(self, graph, leaflist):
     S = [graph.subgraph(c).copy() for c in nx.connected_components(graph)]
     #KF_list = []
     self.len_shot = int(self.len_shot / len(S))
@@ -147,17 +158,17 @@ class Summary:
             init_keyshots = cn - (int(self.len_shot/2))
             end_keyshots = cn + (int(self.len_shot/2))
 
-        if not os.path.isdir(self.input_keyshot_path):
-          os.mkdir(self.input_keyshot_path)
+        if not os.path.isdir(self.summ_path):
+          os.mkdir(self.summ_path)
 
         for k in range(init_keyshots, end_keyshots):
             keyshot = str(comp_leaf_list[k]).zfill(6) # save on keyshot the central node
-            os.system('cp {}frames/{}.jpg {}{}.jpg'.format(self.video_file, keyshot, self.input_keyshot_path, keyshot))
-            self.input_keyshot.save_graph_data(keyshot, '  ', '.jpg') # (path for keyshot, each frame of keyshot, validator to save, extension)
+            os.system('cp {}frames/{}.jpg {}{}.jpg'.format(self.video_file, keyshot, self.summ_path, keyshot))
+            self.summ_input.save_graph_data(keyshot, '  ', '.jpg') # (path for keyshot, each frame of keyshot, validator to save, extension)
 
     # Video Generating function
   def generate_video(self):
-    image_folder = self.input_keyshot_path[:-1]#'.' # make sure to use your folder
+    image_folder = self.summ_input[:-1]#'.' # make sure to use your folder
 
     images = [img for img in os.listdir(image_folder)
 

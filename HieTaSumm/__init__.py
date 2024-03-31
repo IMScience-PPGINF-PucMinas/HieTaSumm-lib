@@ -44,12 +44,9 @@ class HieTaSumm:
         is_binary = kwargs.get('is_binary')
         if not is_binary:
             is_binary = default_data['is_binary']
-        keyshot = kwargs.get('keyshot')
-        if not keyshot:
-            keyshot = default_data['keyshot']
-        keyframe = kwargs.get('keyframe')
-        if not keyframe:
-            keyframe = default_data['keyframe']
+        gen_summary_method = kwargs.get('gen_summary_method')
+        if not gen_summary_method:
+            gen_summary_method = default_data['gen_summary_method']
         
         if not os.path.isdir(dataset_frames):
             os.mkdir(dataset_frames)
@@ -69,7 +66,7 @@ class HieTaSumm:
             video_list.sort() # to guarantee order
             for video in video_list:
                 if video != '.ipynb_checkpoints':
-                    self.hierarchical_summarization(dataset_frames, video, rate, time, percent, alpha, keyshot, keyframe, is_binary, hierarchy, selected_model)
+                    self.hierarchical_summarization(dataset_frames, video, rate, time, percent, alpha, gen_summary_method, is_binary, hierarchy, selected_model)
 
     def frame_extractor(self, video_file, rate, frames):
         # i.e if video of duration 30 seconds, saves 0.5 frame each second = 60 frames saved in total
@@ -130,8 +127,8 @@ class HieTaSumm:
             s.append(i)
         return s
 
-    def hierarchical_summarization(self, dataset_frames, video, rate, time, percent, alpha, keyshot, keyframe, is_binary, hierarchy, selected_model):
-        Summary(dataset_frames, video, rate, time, hierarchy, selected_model, is_binary, percent, alpha, keyshot, keyframe)
+    def hierarchical_summarization(self, dataset_frames, video, rate, time, percent, alpha, gen_summary_method, is_binary, hierarchy, selected_model):
+        Summary(dataset_frames, video, rate, time, hierarchy, selected_model, is_binary, percent, alpha, gen_summary_method)
 
 if __name__== "__main__":
     HieTaSumm()

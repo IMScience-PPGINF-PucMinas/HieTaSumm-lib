@@ -8,7 +8,6 @@
     "hierarchy": "watershed_hierarchy_by_area",
     "selected_model": "resnet50",
     "is_binary": true,
-    "keyshot": true,
-    "keyframe": true
+    "gen_summary_method": {"method": "group_central_frames", "n_keyframes": 7}
   }
   

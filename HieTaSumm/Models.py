@@ -45,7 +45,7 @@ class Models:
       img_arr = np.array(img)
       img_ = self.image_processing(img_arr)
 
-      feature_vect = model_feature_vect.predict(img_)
+      feature_vect = model_feature_vect.predict(img_, verbose='1')
 
       return feature_vect
 
