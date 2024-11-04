@@ -1,6 +1,7 @@
 import os
 import cv2 
 import numpy as np
+import networkx as nx
 from .Files import Files
 
 class Frame:
@@ -9,20 +10,23 @@ class Frame:
 
   def load(self, video_file, delta_t, output_graph_file, features_list):
     if(os.path.exists(video_file)):
+      RG = nx.Graph()
       frame_list = os.listdir(video_file)
       frame_list.sort() # to garanted the time order
 
       feat_list_len = len(features_list)
-      weight_list = []
+      #weight_list = []
 
       for vertex1 in range(feat_list_len):
-        for vertex2 in range(self.calc_init(vertex1, delta_t, feat_list_len),
-                                      self.calc_end(vertex1, delta_t, feat_list_len)):
+        for vertex2 in range(vertex1,
+                            self.calc_end(vertex1, delta_t, feat_list_len)):
           frame1 = os.path.join(video_file, frame_list[vertex1])
           frame2 = os.path.join(video_file, frame_list[vertex2])
           w = self.compute_similarity_img(frame1, frame2, features_list[vertex1], features_list[vertex2])
-          weight_list.append(w)
-          output_graph_file.save_graph_data("{}, {}, {:.2f}".format(vertex1, vertex2, w) , ' ', ' ')
+          RG.add_edge(frame1, frame2, weight = w)
+          #weight_list.append(w)
+          #output_graph_file.save_graph_data("{}, {}, {:.2f}".format(vertex1, vertex2, w) , ' ', ' ')
+      return RG
 
   def compute_similarity_img(self, img_path_1, img_path_2, fea_vec_img1, fea_vec_img2): # img_path_1, img_path_2):
       filename1 = os.path.basename(img_path_1).split(".")[0]
@@ -53,14 +57,6 @@ class Frame:
   def calculate_similarity(self, vector1, vector2):
       sim_cos = np.linalg.norm(vector1-vector2, 1) * 100 / len(vector2)
       return sim_cos
-  
-  def calc_init(self, i, delta_t, frame_len):
-      if((i < delta_t) or delta_t < 0):
-          return 0
-      elif((i + delta_t) > frame_len):
-          return i
-      else:
-          return i - delta_t
 
   def calc_end(self, i, delta_t, frame_len):
       if(((i + delta_t) > frame_len) or delta_t < 0):

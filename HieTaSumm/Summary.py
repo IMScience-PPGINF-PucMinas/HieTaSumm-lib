@@ -2,6 +2,7 @@ from .Files import Files
 from .Frame import Frame
 from .Models import Models
 from .Graph import Graph
+from .Evaluation import Evaluation
 import os 
 from PIL import Image
 import numpy as np
@@ -21,7 +22,6 @@ class Summary:
     self.frame = Frame(self.model)
     self.len_shot = 0
     self.rate = rate
-
     # creating path for files
     self.input_graph_file = Files('{}graph.txt'.format(self.video_file))
     self.input_mst = '{}mst_{}_{}.txt'.format(self.video_file, self.percent, self.alpha)
@@ -31,45 +31,75 @@ class Summary:
     self.output_skim = '{}skim_{}_{}'.format(self.video_file, self.percent, self.alpha)
     self.summ_path = '{}{}/'.format(self.video_file, gen_summary_method['method'])
     self.summ_input = Files('{}{}.txt'.format(self.video_file, gen_summary_method['method']))
-
-    cut_number = self.bestCutNumber()
+    self.evaluate_summary = Evaluation(self.frames_path, dataset_frames, 'self.gt_path', self.model, gen_summary_method['method'])
+    self.fscore = 0
+    self.mean_cusa = 0
+    self.mean_cuse = 0
+    self.cov_value = 0
 
     print("----------------------")
     print("Processing video {}".format(self.video_file))
 
     if(not os.path.exists(self.input_graph_file.file)):
+      RG = nx.Graph()
       f = open(self.input_graph_file.file, "a") # pensando em paralelizar para garantir a integridade do arquivo
       f.close()
       features_list = self.model.features(self.frames_path) # extract features
-      self.frame.load(self.frames_path, self.delta_t, self.input_graph_file, features_list) # Load the frame list and create a graph for the video
+      RG = self.frame.load(self.frames_path, self.delta_t, self.input_graph_file, features_list) # Load the frame list and create a graph for the video
 
     if(not os.path.exists(self.input_higra.file)):
 
       if gen_summary_method['method'] == 'n_fixed_keyframes':
-        chosen = gen_summary_method['n_keyframes']
-        self.cut_number = chosen - 1
+        self.cut_number = gen_summary_method['n_keyframes'] - 1
+        self.len_shot = round((len(os.listdir(self.frames_path))) * (self.percent/100)) - 1
       elif gen_summary_method['method'] in ['group_central_frames', 'percent_spaced']:
         self.len_shot = round((len(os.listdir(self.frames_path))) * (self.percent/100)) - 1
-        self.cut_number = int(self.bestCutNumber() * alpha)
+        self.cut_number = int(self.bestCutNumber() * (self.alpha / 100))
         if(self.cut_number <= 2):
             self.cut_number = 3
 
-      #tree = gen_mst(input_graph_file, input_mst) # generate the minimum spanning tree
-      tree = self.input_graph_file.read_graph_file(Files(), cut_graph = False, cut_number = 0) # read the graph file
-      leaflist = self.graph.compute_hierarchy(tree, self.input_higra) # Create the hierarchy based on the minimum spanning tree and return the leaves of the new hierarchy
-      cuted_graph = self.graph.cut_graph(self.input_higra, self.cut_graph_file, cutNumber = cut_number) # Create a new graph based on the hierarchy and the level cut
-      #plotGraph(cuted_graph, True)
       if gen_summary_method['method'] == 'sequential_keyframe':
         self.sequential_keyframe(gen_summary_method['n_keyframes'])
-      if gen_summary_method['method'] in ('n_fixed_keyframes', 'percent_spaced'):
-        self.get_n_frames(cuted_graph, leaflist)
-      if gen_summary_method['method'] == 'group_central_frames':
-        self.group_central_frames(cuted_graph, leaflist)
+      else:
+        tree = RG#self.input_graph_file.read_graph_file(Files(), cut_graph = False, cut_number = 0) # read the graph file
+        leaflist = self.graph.compute_hierarchy(tree, self.input_higra) # Create the hierarchy based on the minimum spanning tree and return the leaves of the new hierarchy
+        cuted_graph = self.graph.cut_graph(self.input_higra, self.cut_graph_file, cutNumber = self.cut_number) # Create a new graph based on the hierarchy and the level cut
+        if gen_summary_method['method'] == 'group_central_frames':
+          self.group_central_frames(cuted_graph, leaflist)
+        else: 
+          self.get_n_frames(cuted_graph, leaflist)
 
       if(not os.path.exists(self.output_skim)):
         os.mkdir(self.output_skim)
-      self.generate_video()
-
+      
+    if(os.path.exists(self.summ_input.file)):
+      if video in ['Air_Force_One',    
+                  'Cooking',    
+                  'Bearpark_climbing',    
+                  'Saving_dolphines',    
+                  'Cockpit_Landing',    
+                  'Bus_in_Rock_Tunnel',    
+                  'Kids_playing_in_leaves',    
+                  'Scuba',    
+                  'Bike_Polo',    
+                  'Fire_Domino',    
+                  'car_over_camera',    
+                  'Eiffel_Tower',    
+                  'Valparaiso_Downhill',    
+                  'Paintball',    
+                  'Statue_of_Liberty',    
+                  'Excavators_river_crossing',    
+                  'St_Maarten_Landing',    
+                  'Jumps',    
+                  'playing_ball',    
+                  'Notre_Dame',    
+                  'Uncut_Evening_Flight',    
+                  'Car_railcrossing',    
+                  'Playing_on_water_slide',    
+                  'Base_jumping', 
+                  'paluma_jump']:
+        self.fscore, self.mean_cusa, self.mean_cuse, self.cov_value = self.evaluate_summary.evaluate(video)
+        
 
   def bestCutNumber(self):
     if(os.path.exists(self.frames_path)):
@@ -85,8 +115,8 @@ class Summary:
         feat_list_len = len(features_list)
 
         for vertex1 in range(feat_list_len):
-            for vertex2 in range(self.calc_init(vertex1, self.delta_t, feat_list_len),
-                                    self.calc_end(vertex1, self.delta_t, feat_list_len)):
+            for vertex2 in range(vertex1,
+                              self.calc_end(vertex1, self.delta_t, feat_list_len)):
                 w = self.spatialSim(features_list[vertex1], features_list[vertex2])/100 # teste nan
                 weight_list.append(w)
         cut = np.std(weight_list)
@@ -146,7 +176,35 @@ class Summary:
           comp_leaf_list.append(list(S[c])[i])
       len_leaf_list = len(comp_leaf_list)
       cn = int(len_leaf_list/2) # find the central node for keyframe strategy
+      if not (cn == 0):
+        if(len_leaf_list < self.len_shot):
+            init_keyshots = 0
+            end_keyshots = len_leaf_list - 1
+        else:
+            init_keyshots = cn - (int(self.len_shot/2))
+            end_keyshots = cn + (int(self.len_shot/2))
+        if not os.path.isdir(self.summ_path):
+          os.mkdir(self.summ_path)
 
+        for k in range(init_keyshots, end_keyshots):
+          keyshot = str(comp_leaf_list[k]).zfill(6) # save on keyshot the central node
+          os.system('cp {}frames/{}.jpg {}{}.jpg'.format(self.video_file, keyshot, self.summ_path, keyshot))
+          self.summ_input.save_graph_data(keyshot, '  ', '.jpg') # (path for keyshot, each frame of keyshot, validator to save, extension)
+  
+  def keyshot(self, graph, leaflist):
+    S = [graph.subgraph(c).copy() for c in nx.connected_components(graph)]
+    #KF_list = []
+    self.len_shot = int(self.len_shot / len(S))
+    for c in range(len(S)):
+      central_node = len(S[c].nodes)
+      comp_leaf_list = []
+      for i in range(central_node):
+        if(list(S[c])[i] in leaflist):
+          comp_leaf_list.append(list(S[c])[i])
+      len_leaf_list = len(comp_leaf_list)
+      cn = int(len_leaf_list/2) # find the central node for keyframe strategy
+
+      print(f'cn -> {cn}')
       if not (cn == 0):
         if(len_leaf_list < self.len_shot):
             init_keyshots = 0
@@ -165,7 +223,6 @@ class Summary:
             keyshot = str(comp_leaf_list[k]).zfill(6) # save on keyshot the central node
             os.system('cp {}frames/{}.jpg {}{}.jpg'.format(self.video_file, keyshot, self.summ_path, keyshot))
             self.summ_input.save_graph_data(keyshot, '  ', '.jpg') # (path for keyshot, each frame of keyshot, validator to save, extension)
-
     # Video Generating function
   def generate_video(self):
     image_folder = self.summ_input[:-1]#'.' # make sure to use your folder
@@ -195,14 +252,6 @@ class Summary:
     # Deallocating memories taken for window creation
     cv.destroyAllWindows()
     video.release() # releasing the video generated
-
-  def calc_init(self, i, delta_t, frame_len):
-      if((i < delta_t) or delta_t < 0):
-          return 0
-      elif((i + delta_t) > frame_len):
-          return i
-      else:
-          return i - delta_t
 
   def calc_end(self, i, delta_t, frame_len):
       if(((i + delta_t) > frame_len) or delta_t < 0):

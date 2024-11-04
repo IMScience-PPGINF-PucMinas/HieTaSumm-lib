@@ -8,6 +8,10 @@ from pathlib import Path
 
 class HieTaSumm:
     def __init__(self, **kwargs):
+        self.f_score_epochs = []
+        self.cusa_epochs = []
+        self.cuse_epochs = []
+        self.cov_epochs = []
         PACKAGEDIR = Path(__file__).parent.absolute()
         my_file = PACKAGEDIR / 'options.json'
 
@@ -66,7 +70,18 @@ class HieTaSumm:
             video_list.sort() # to guarantee order
             for video in video_list:
                 if video != '.ipynb_checkpoints':
-                    self.hierarchical_summarization(dataset_frames, video, rate, time, percent, alpha, gen_summary_method, is_binary, hierarchy, selected_model)
+                    fscore, cusa, cuse, cov = self.hierarchical_summarization(dataset_frames, video, rate, time, percent, alpha, gen_summary_method, is_binary, hierarchy, selected_model)
+                    self.f_score_epochs.append(fscore)
+                    self.cusa_epochs.append(cusa)
+                    self.cuse_epochs.append(cuse)
+                    self.cov_epochs.append(cov)
+        print("----------------------")
+        print(f'The avg fscore of all videos was: {np.mean(self.f_score_epochs)}')
+        print(f'The avg CUSa of all videos was: {np.mean(self.cusa_epochs)}')
+        print(f'The avg CUSe of all videos was: {np.mean(self.cuse_epochs)}')
+        print(f'The avg Cov of all videos was: {np.mean(self.cov_epochs)}')
+
+
 
     def frame_extractor(self, video_file, rate, frames):
         # i.e if video of duration 30 seconds, saves 0.5 frame each second = 60 frames saved in total
@@ -128,7 +143,8 @@ class HieTaSumm:
         return s
 
     def hierarchical_summarization(self, dataset_frames, video, rate, time, percent, alpha, gen_summary_method, is_binary, hierarchy, selected_model):
-        Summary(dataset_frames, video, rate, time, hierarchy, selected_model, is_binary, percent, alpha, gen_summary_method)
+        summ = Summary(dataset_frames, video, rate, time, hierarchy, selected_model, is_binary, percent, alpha, gen_summary_method)
+        return summ.fscore, summ.mean_cusa, summ.mean_cuse, summ.cov_value
 
 if __name__== "__main__":
     HieTaSumm()
